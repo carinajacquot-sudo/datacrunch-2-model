@@ -1,0 +1,8 @@
+kaggle.json
+.crunchdao/
+*.token
+.env
+data/
+*.parquet
+*.npz
+__pycache__/
