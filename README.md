@@ -1,55 +1,107 @@
-# DataCrunch #2 — la machine
+# DataCrunch Equity Market Neutral #2 — pipeline de soumission
 
-**Compétition :** DataCrunch Equity Market Neutral #2 (CrunchDAO / Crunch Capital)
-**Prix :** 1 000 USDC/semaine · **clôture dimanche 12:00 UTC** · quota 15 h/semaine
+**Compétition :** DataCrunch #2 (CrunchDAO / Crunch Capital) · 1 000 USDC/semaine
+**Clôture :** dimanche 12:00 UTC · quota 15 h de calcul/semaine
+**Statut :** `unranked` — aucune soumission effectuée à ce jour
 
-## Découvertes qui guident tout le reste
+---
 
-| # | Fait mesuré sur les vraies données | Conséquence |
+## Le modèle livré
+
+`main.py` implémente **une seule recette, choisie parce qu'elle a été mesurée**,
+pas parce qu'elle était disponible.
+
+### `D_peu_arbres` — +0,0188 · t = 3,97 · 88 % de moons positifs
+
+Mesuré sur 24 moons de test jamais vus, embargo 4, criblage refait dans
+chaque pli. C'est le meilleur des **40 configurations** testées.
+
+| Étape | Choix | Pourquoi |
 |---|---|---|
-| 1 | **87,18 %** des cibles valent exactement **0** | un modèle naïf gaspille 87 % de sa capacité → modèle à deux étages |
-| 2 | les features sont des **rangs uniformes [0,1]**, toutes identiques en distribution | normaliser ne sert à rien |
-| 3 | **aucune** corrélation entre features voisines (max 0,001) | elles sont orthogonales, pas de redondance à exploiter |
-| 4 | la relation feature→cible est **non linéaire** (profil en U, corr +0,85) | une régression linéaire — le quickstarter officiel — passe à côté |
-| 5 | `projectCreationLimit = 4` | jusqu'à **4 modèles** par compte, décorrélés |
-| 6 | le token de setup est **à usage unique** (3 min) | il faut le régénérer à chaque soumission |
+| Cible | centrée par moon puis σ=1 par moon | la cible est déjà neutralisée, on retire le niveau de moon |
+| Features | **250** criblées par \|corr\| moyenne par moon | optimum mesuré : 1 150 → +0,0063, 250 → +0,0188, 40 → +0,0063 |
+| Criblage | **dans `train()` seulement** | sur toutes les données il fabriquait une fuite : +0,0146 annoncé, +0,0014 réel |
+| Modèle | LightGBM **100 arbres**, lr 0,05, leaves 15, min_child 300, colsample 0,3, subsample 0,8, λ=5 | avec un signal faible, plus d'arbres mémorise le bruit : 300 → +0,0124, 600 → +0,0113 |
+| Sortie | **rangs uniformes (0,1) par moon** | la métrique est un rang ; Pearson sur valeur = +0,0031, sur rang = +0,0159 |
+
+### Ce qui a été écarté, et pourquoi
+
+| Famille | Meilleur score | t | Verdict |
+|---|---|---|---|
+| linéaires (ridge, lasso, elasticnet, PCA) | +0,0089 | 1,77 | ne franchit pas t=2, lasso à +0,0000 |
+| LambdaRank / LTR | +0,0127 | 2,16 | pas assez de paires par moon |
+| deux étages (P(non nul) × E[cible]) | +0,0109 | 2,34 | la classe « non nul » est trop rare et bruitée |
+| pondération par l'ampleur (Jane Street) | +0,0068 | 1,32 | ne se transpose pas ici |
+| cascade de résidus | +0,0039 | 0,87 | le résidu est du bruit |
+
+Le registre complet des 40 modèles est dans
+[`datacrunch-2-knowledge`](https://github.com/carinajacquot-sudo/datacrunch-2-knowledge)
+→ `registry/modeles.json` et `07-resultats-mesures.md`.
+
+---
+
+## Budget de calcul — le piège qui annule une soumission
+
+Le runner estime le temps par moon **avant** de lancer. Si l'estimation dépasse
+le temps restant, il coupe au milieu :
+
+> *stopping early at moon=791 because the estimated required time (~192h23m45s)
+> is greater than the remaining time before timeout (~14h57m32s)*
+
+Un modèle trop lourd ne donne pas un mauvais score : il donne **aucun score**.
+
+`train()` mesure sa propre durée et applique cette politique :
+
+| Réentraînement | Coût total (781 moons) | Verdict |
+|---|---|---|
+| à chaque moon | ~2,6 h | acceptable mais sans marge |
+| **tous les 2 moons** | **~1,3 h** | **retenu** |
+| tous les 4 moons | ~0,7 h | si l'entraînement dépasse 45 s |
+
+Le modèle est réutilisé tant qu'il a moins de 2 moons, via `resources/state.json`.
+Le criblage se fait par blocs de 200 colonnes en float32 pour tenir en mémoire.
+
+---
+
+## Conformité au contrat
+
+`infer()` produit exactement `{moon, id, prediction}` et vérifie :
+
+- `moon` et `id` en `int64`, `prediction` en `float64`
+- une ligne par `id`, aucun `NaN`, aucun infini
+- `prediction ∈ [-10, 10]`
+- **aucune prédiction constante par moon** (interdit → score 0)
+- rangs calculés **à l'intérieur** de chaque moon, jamais entre moons
+
+---
 
 ## Structure
 
 ```
-machine/
-├── config.py           contraintes et seuils, une seule source de vérité
-├── evaluate_model.py   walk-forward + verdict statistique
-├── models.py           8 modèles interchangeables
-├── selector.py         4 modèles décorrélés (< 0,95)
-└── submit.py           soumission avec 4 garde-fous
+main.py                  le modèle livré (train + infer, contrat CrunchDAO)
+kernel-metadata.json     déclaration du kernel Kaggle qui teste le pipeline
+pipeline_test.ipynb      réplique exacte de la boucle du runner sur 12 moons
+machine/                 outils d'analyse locaux (évaluation, sélection, soumission)
 ```
 
-## Règle de la machine
+## Ce qui reste à faire
 
-Un modèle ne sort que si **corrélation ≥ 0,015 ET |t-stat| ≥ 2,0**.
-Sinon `submit.py` refuse. Pas de pari sur du bruit.
+1. Le kernel `datacrunch-2-pipeline-test` valide le contrat et le coût sur Kaggle.
+2. Lire les résultats de `idees-publiques` (statistiques transversales de ligne,
+   quintiles par moon) — la dernière famille d'idées non testée.
+3. Soumettre, puis suivre le premier score (semaine 6 : 1 jour + 4 semaines).
 
-## Résultats obtenus
+## Historique des mesures
 
-Walk-forward, 20 moons jamais vus, données réelles, 250 features :
+| Date | Événement |
+|---|---|
+| 15/11 | fuite de sélection détectée : +0,0146 annoncé → +0,0014 réel |
+| 16/11 | `la-verite` : 9 configurations sans fuite, gagnant +0,0188 (t 3,97) |
+| 16/11 | `recherche-2` : familles linéaires toutes battues ⇒ axe fermé |
+| 16/11 | `astuces-js` : poids temporels +0,0123, autres astuces sous-performantes |
+| 16/11 | registre consolidé : 40 modèles |
 
-| Modèle | Moyenne | % moons positifs | t-stat |
-|---|---|---|---|
-| hasard | −0,0074 | 40 % | — |
-| Ridge | +0,0153 | 65 % | — |
-| **LightGBM** | **+0,0146** | **80 %** | **3,20** |
+---
 
-Edge sur le hasard : **+0,0220** · IC 95 % [+0,0057, +0,0236] → edge réel.
-
-## Utilisation
-
-```bash
-python3 machine/submit.py --check      # diagnostic complet, n'envoie rien
-python3 machine/submit.py --go         # soumet (CRUNCH_TOKEN requis)
-```
-
-## Secrets
-
-Aucune clé dans ce dépôt. `kaggle.json`, les tokens CrunchDAO et le token
-GitHub sont exclus par `.gitignore`.
+*Le code ne contient que du code : les données, les jetons et les modèles
+sérialisés ne sont jamais versionnés (voir `.gitignore`).*

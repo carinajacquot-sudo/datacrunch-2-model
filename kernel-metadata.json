@@ -1,14 +1,15 @@
 {
-  "id": "jacquotvelomanana/datacrunch2-exp",
-  "title": "DataCrunch 2 experiences",
-  "code_file": "datacrunch2_exp.ipynb",
-  "language": "python",
-  "kernel_type": "notebook",
-  "is_private": true,
-  "enable_gpu": true,
-  "enable_internet": true,
-  "dataset_sources": ["jacquotvelomanana/datacrunch2-data"],
-  "competition_sources": [],
-  "kernel_sources": [],
-  "model_sources": []
+ "id": "jacquotvelomanana/datacrunch-2-pipeline-test",
+ "title": "datacrunch-2-pipeline-test",
+ "code_file": "pipeline_test.ipynb",
+ "language": "python",
+ "kernel_type": "notebook",
+ "is_private": true,
+ "enable_gpu": false,
+ "enable_tpu": false,
+ "enable_internet": false,
+ "dataset_sources": ["jacquotvelomanana/datacrunch2-data-full"],
+ "competition_sources": [],
+ "kernel_sources": [],
+ "model_sources": []
 }
