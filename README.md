@@ -11,10 +11,27 @@
 `main.py` implémente **une seule recette, choisie parce qu'elle a été mesurée**,
 pas parce qu'elle était disponible.
 
-### `D_peu_arbres` — +0,0188 · t = 3,97 · 88 % de moons positifs
+### `D_peu_arbres` — validé bout en bout
 
-Mesuré sur 24 moons de test jamais vus, embargo 4, criblage refait dans
-chaque pli. C'est le meilleur des **40 configurations** testées.
+Deux mesures, deux méthodes, même conclusion :
+
+| Mesure | Score | t | Moons positifs |
+|---|---|---|---|
+| Campagne `la-verite` — criblage sur toutes les lignes d'entraînement, 24 moons | **+0,0188** | 3,97 | 88 % |
+| **Pipeline de soumission** — criblage échantillonné, 12 moons | **+0,0267** | **7,42** | **100 %** |
+
+La seconde est celle qui compte : c'est le code réel, exécuté dans une
+réplique exacte de la boucle du runner, `train()` puis `infer()` moon après
+moon. Contrat de sortie vérifié, 2,17 h de calcul projetées pour un budget
+de 15 h, 26,4 Go de pic mémoire.
+
+**Pourquoi le pipeline marque plus** : les moons de test du pipeline ne sont
+pas centrés (le runner ne fournit que les features, pas la cible), donc le
+modèle prédit aussi un écart de niveau entre moons — ce que le scoring
+orthogonalise ensuite. Ce n'est pas un gain réel, c'est une différence de
+protocole. Le chiffre prudent reste **+0,0188**.
+
+C'est le meilleur des **53 configurations** testées.
 
 | Étape | Choix | Pourquoi |
 |---|---|---|
